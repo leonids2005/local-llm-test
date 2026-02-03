@@ -33,9 +33,10 @@ startup_script = <<-EOF
     lsb-release \
     pciutils
 
-  # Install NVIDIA drivers for T4 GPU
-  curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | apt-key add -
-  echo "deb https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
+  # Install NVIDIA drivers for T4 GPU (using modern signed-by method)
+  curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
+    gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
   apt-get update
   apt-get install -y cuda-drivers
 
@@ -56,8 +57,16 @@ startup_script = <<-EOF
   nvidia-ctk runtime configure --runtime=docker
   systemctl restart docker
 
-  # Verify GPU is accessible
-  nvidia-smi
+  # Verify GPU is accessible (wait for drivers to load)
+  echo "Waiting for GPU drivers to initialize..."
+  for i in {1..30}; do
+    if nvidia-smi; then
+      echo "GPU initialized successfully"
+      break
+    fi
+    echo "Waiting for GPU drivers to load... ($i/30)"
+    sleep 2
+  done
 
   # Pull and run Ollama with GPU support
   docker run -d \
@@ -71,8 +80,13 @@ startup_script = <<-EOF
   # Wait for Ollama to start
   sleep 15
 
-  # Pull a model for testing (Llama 2 7B will use GPU)
-  docker exec ollama ollama pull llama2
+  # Pull a model for testing only if not already present (saves bandwidth on recreates)
+  if ! docker exec ollama ollama list | grep -q llama2; then
+    echo "Pulling llama2 model (first boot only)..."
+    docker exec ollama ollama pull llama2
+  else
+    echo "llama2 model already present, skipping download"
+  fi
 
   # Optional: Install nginx as reverse proxy
   apt-get install -y nginx
