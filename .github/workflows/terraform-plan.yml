@@ -23,7 +23,6 @@ jobs:
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
-        if: github.event.pull_request.head.repo.fork == false
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
@@ -41,14 +40,7 @@ jobs:
 
       - name: Terraform Init
         id: init
-        if: github.event.pull_request.head.repo.fork == false
         run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
-        working-directory: ./terraform
-
-      - name: Terraform Init (No Backend)
-        id: init_no_backend
-        if: github.event.pull_request.head.repo.fork == true
-        run: terraform init -backend=false
         working-directory: ./terraform
 
       - name: Terraform Validate
@@ -58,7 +50,6 @@ jobs:
 
       - name: Terraform Plan (Dev)
         id: plan
-        if: github.event.pull_request.head.repo.fork == false
         run: |
           terraform plan \
             -var-file=../environments/dev.tfvars \
@@ -80,14 +71,12 @@ jobs:
 
       - name: Setup Infracost
         uses: infracost/actions/setup@v2
-        if: github.event.pull_request.head.repo.fork == false
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
         continue-on-error: true
 
       - name: Generate Infracost diff
         id: infracost
-        if: github.event.pull_request.head.repo.fork == false
         run: |
           infracost breakdown \
             --path=terraform \

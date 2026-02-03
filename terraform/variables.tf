@@ -135,3 +135,12 @@ variable "firewall_source_ranges" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "guest_accelerator" {
+  description = "GPU configuration"
+  type = object({
+    type  = string
+    count = number
+  })
+  default = null
+}

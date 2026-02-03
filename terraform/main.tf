@@ -35,6 +35,14 @@ resource "google_compute_instance" "spot_instance" {
     on_host_maintenance         = "TERMINATE"
   }
 
+  dynamic "guest_accelerator" {
+    for_each = var.guest_accelerator != null ? [var.guest_accelerator] : []
+    content {
+      type  = guest_accelerator.value.type
+      count = guest_accelerator.value.count
+    }
+  }
+
   boot_disk {
     initialize_params {
       image = data.google_compute_image.os_image.self_link
