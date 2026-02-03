@@ -1,0 +1,98 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which might contain sensitive data
+# But keep the environment examples
+*.tfvars
+!environments/*.tfvars
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control
+# !example_override.tf
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# GCP Service Account Keys - NEVER COMMIT THESE
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+terraform-key.json
+*-key.json
+credentials.json
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+*.pub
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Terraform plugins
+.terraform.lock.hcl
+*.tfplan
+
+# Infracost
+.infracost/
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Certificate files
+*.crt
+*.cert
+*.cer
+*.p12
+*.pfx
+
+# Secrets and credentials
+secrets/
+*secret*
+*password*
+*credentials*
+
+# But allow these specific files
+!README.md
+!LICENSE

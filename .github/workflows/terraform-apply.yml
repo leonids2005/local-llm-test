@@ -1,0 +1,80 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - 'environments/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+        working-directory: ./terraform
+
+      - name: Terraform Apply
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          terraform apply \
+            -var-file=../environments/${ENV}.tfvars \
+            -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -auto-approve
+        working-directory: ./terraform
+
+      - name: Terraform Output
+        id: output
+        run: terraform output -json
+        working-directory: ./terraform
+
+      - name: Save Outputs
+        run: |
+          echo '${{ steps.output.outputs.stdout }}' > terraform-outputs.json
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-${{ github.event.inputs.environment || 'dev' }}
+          path: terraform-outputs.json
+          retention-days: 30
+
+      - name: Display Connection Info
+        run: |
+          echo "::notice title=Deployment Complete::Successfully deployed to ${{ github.event.inputs.environment || 'dev' }} environment"
+          echo "Check the artifacts for connection details (IP addresses, instance info)"
