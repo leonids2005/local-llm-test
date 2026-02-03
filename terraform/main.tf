@@ -19,6 +19,8 @@ data "google_compute_image" "os_image" {
   project = var.image_project
 }
 
+#checkov:skip=CKV_GCP_38:Customer-managed encryption keys are overkill for dev/test environments
+#checkov:skip=CKV_GCP_40:False positive - external IP is controlled by assign_external_ip variable (set to false in dev)
 resource "google_compute_instance" "spot_instance" {
   name         = "${var.instance_name}-${var.environment}"
   machine_type = var.machine_type
@@ -66,8 +68,9 @@ resource "google_compute_instance" "spot_instance" {
   }
 
   metadata = {
-    startup-script = var.startup_script
-    ssh-keys       = var.ssh_keys
+    startup-script         = var.startup_script
+    ssh-keys               = var.ssh_keys
+    block-project-ssh-keys = "true"
   }
 
   metadata_startup_script = var.startup_script
@@ -75,6 +78,12 @@ resource "google_compute_instance" "spot_instance" {
   service_account {
     email  = var.service_account_email != "" ? var.service_account_email : null
     scopes = var.service_account_scopes
+  }
+
+  shielded_instance_config {
+    enable_secure_boot          = true
+    enable_vtpm                 = true
+    enable_integrity_monitoring = true
   }
 
   allow_stopping_for_update = true

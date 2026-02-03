@@ -166,12 +166,22 @@ You will need these values for GitHub secrets:
 ### 3. Create GCS Bucket for Terraform State
 
 ```bash
+# Enable Cloud Storage API
+gcloud services enable storage-api.googleapis.com
+
 # Create bucket for storing Terraform state
 gsutil mb gs://${PROJECT_ID}-terraform-state
 
 # Enable versioning (allows rolling back to previous states)
 gsutil versioning set on gs://${PROJECT_ID}-terraform-state
+
+# Grant service account access to the bucket
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:terraform-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
 ```
+
+**Note**: The service account needs `storage.admin` role to read/write Terraform state files in the GCS bucket.
 
 ### 4. Enable IAP for Secure Access
 
