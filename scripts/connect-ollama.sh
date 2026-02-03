@@ -9,10 +9,24 @@ echo "🔒 Creating secure IAP tunnel to Ollama..."
 echo ""
 
 # Check if tunnel already exists
-if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1 ; then
-    echo "⚠️  Port $PORT is already in use. Tunnel may already be running."
-    echo "   To kill existing tunnel: pkill -f '$PORT:localhost:$PORT'"
-    exit 1
+if command -v lsof >/dev/null 2>&1; then
+    if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "⚠️  Port $PORT is already in use. Tunnel may already be running."
+        echo "   To kill existing tunnel: pkill -f '$PORT:localhost:$PORT'"
+        exit 1
+    fi
+elif command -v ss >/dev/null 2>&1; then
+    if ss -tuln 2>/dev/null | grep -q ":$PORT "; then
+        echo "⚠️  Port $PORT is already in use. Tunnel may already be running."
+        echo "   To kill existing tunnel: pkill -f '$PORT:localhost:$PORT'"
+        exit 1
+    fi
+elif command -v netstat >/dev/null 2>&1; then
+    if netstat -tuln 2>/dev/null | grep -q ":$PORT "; then
+        echo "⚠️  Port $PORT is already in use. Tunnel may already be running."
+        echo "   To kill existing tunnel: pkill -f '$PORT:localhost:$PORT'"
+        exit 1
+    fi
 fi
 
 # Create tunnel

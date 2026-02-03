@@ -143,4 +143,20 @@ variable "guest_accelerator" {
     count = number
   })
   default = null
+
+  validation {
+    condition = (
+      var.guest_accelerator == null ||
+      can(regex("^nvidia-tesla-(t4|p4|v100|p100|k80|a100)", var.guest_accelerator.type))
+    )
+    error_message = "GPU type must be a valid NVIDIA Tesla GPU (t4, p4, v100, p100, k80, a100)."
+  }
+
+  validation {
+    condition = (
+      var.guest_accelerator == null ||
+      (var.guest_accelerator.count >= 1 && var.guest_accelerator.count <= 8)
+    )
+    error_message = "GPU count must be between 1 and 8."
+  }
 }

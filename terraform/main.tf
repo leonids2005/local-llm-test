@@ -32,7 +32,7 @@ resource "google_compute_instance" "spot_instance" {
     automatic_restart           = false
     provisioning_model          = "SPOT"
     instance_termination_action = var.termination_action
-    on_host_maintenance         = "TERMINATE"
+    on_host_maintenance         = "TERMINATE"  # Required for GPUs, safe for all spot instances
   }
 
   dynamic "guest_accelerator" {
