@@ -23,6 +23,7 @@ guest_accelerator = {
 startup_script = <<-EOF
   #!/bin/bash
   set -e
+  export DEBIAN_FRONTEND=noninteractive
 
   # Update system
   apt-get update
@@ -34,27 +35,42 @@ startup_script = <<-EOF
     lsb-release \
     pciutils
 
-  # Install NVIDIA drivers for T4 GPU (using modern signed-by method)
-  curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
-    gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
-  apt-get update
-  apt-get install -y cuda-drivers
+  # Install NVIDIA drivers for T4 GPU (skip if already installed)
+  if ! command -v nvidia-smi &> /dev/null; then
+    echo "Installing NVIDIA drivers..."
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
+      gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
+    apt-get update
+    apt-get install -y cuda-drivers
+  else
+    echo "NVIDIA drivers already installed, skipping"
+  fi
 
-  # Install NVIDIA Container Toolkit for Docker GPU support
-  distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-  apt-get update
-  apt-get install -y nvidia-container-toolkit
+  # Install NVIDIA Container Toolkit for Docker GPU support (skip if already installed)
+  if ! command -v nvidia-ctk &> /dev/null; then
+    echo "Installing NVIDIA Container Toolkit..."
+    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+      sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+      tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    apt-get update
+    apt-get install -y nvidia-container-toolkit
+  else
+    echo "NVIDIA Container Toolkit already installed, skipping"
+  fi
 
-  # Install Docker
-  curl -fsSL https://get.docker.com -o get-docker.sh
-  sh get-docker.sh
+  # Install Docker (skip if already installed)
+  if ! command -v docker &> /dev/null; then
+    echo "Installing Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+  else
+    echo "Docker already installed, skipping"
+  fi
 
-  # Configure Docker to use NVIDIA runtime
+  # Configure Docker to use NVIDIA runtime (idempotent)
   nvidia-ctk runtime configure --runtime=docker
   systemctl restart docker
 
@@ -69,17 +85,23 @@ startup_script = <<-EOF
     sleep 2
   done
 
-  # Pull and run Ollama with GPU support
-  docker run -d \
-    --gpus all \
-    --name ollama \
-    --restart always \
-    -p 11434:11434 \
-    -v /var/lib/ollama:/root/.ollama \
-    ollama/ollama
-
-  # Wait for Ollama to start
-  sleep 15
+  # Pull and run Ollama with GPU support (skip if already running)
+  if ! docker ps | grep -q ollama; then
+    echo "Starting Ollama container..."
+    # Remove stopped container if it exists
+    docker rm -f ollama 2>/dev/null || true
+    docker run -d \
+      --gpus all \
+      --name ollama \
+      --restart always \
+      -p 11434:11434 \
+      -v /var/lib/ollama:/root/.ollama \
+      ollama/ollama
+    # Wait for Ollama to start
+    sleep 15
+  else
+    echo "Ollama container already running, skipping"
+  fi
 
   # Pull a model for testing only if not already present (saves bandwidth on recreates)
   if ! docker exec ollama ollama list | grep -q llama2; then
@@ -89,10 +111,15 @@ startup_script = <<-EOF
     echo "llama2 model already present, skipping download"
   fi
 
-  # Optional: Install nginx as reverse proxy
-  apt-get install -y nginx
-  systemctl start nginx
-  systemctl enable nginx
+  # Optional: Install nginx as reverse proxy (skip if already installed)
+  if ! command -v nginx &> /dev/null; then
+    echo "Installing nginx..."
+    apt-get install -y nginx
+    systemctl start nginx
+    systemctl enable nginx
+  else
+    echo "nginx already installed, skipping"
+  fi
 
   # Log completion
   echo "LLM server with GPU setup completed at $(date)" >> /var/log/llm-setup.log
