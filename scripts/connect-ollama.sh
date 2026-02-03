@@ -2,7 +2,7 @@
 # Connect to Ollama via IAP tunnel and configure Claude Code
 
 INSTANCE="llm-server-dev"
-ZONE="us-central1-a"
+ZONE="us-central1-c"  # Default zone for GPU spot instances
 PORT="11434"
 
 echo "🔒 Creating secure IAP tunnel to Ollama..."

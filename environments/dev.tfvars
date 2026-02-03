@@ -5,6 +5,10 @@ boot_disk_size     = 100  # Increased for LLM models
 boot_disk_type     = "pd-standard"
 termination_action = "DELETE" # Don't preserve in dev to save costs
 
+# Zone selection: Use less busy zones for better GPU spot availability
+# If you get ZONE_RESOURCE_POOL_EXHAUSTED, try: us-west1-b, us-east4-c, europe-west4-a
+zone = "us-central1-c"
+
 # Security: No public IP, use IAP tunneling
 assign_external_ip = false
 

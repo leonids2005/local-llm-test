@@ -586,6 +586,28 @@ chmod +x scripts/connect-ollama.sh
 
 ## 🛠️ Customization
 
+### GPU Spot Instance Zones
+
+GPU spot instances can have availability issues in busy zones. The configuration uses **us-central1-c** by default, which typically has better availability than us-central1-a.
+
+**If you encounter `ZONE_RESOURCE_POOL_EXHAUSTED` errors**, try these zones (in order):
+1. `us-central1-c` (default, good balance)
+2. `us-west1-b` (often available)
+3. `us-east4-c` (less congested)
+4. `europe-west4-a` (EU, usually available)
+
+**To change zone**, edit [environments/dev.tfvars](environments/dev.tfvars):
+```hcl
+zone = "us-west1-b"
+```
+
+Then redeploy:
+```bash
+terraform apply -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+```
+
+**Note**: Using SPOT instances with GPUs saves ~60-70% vs STANDARD pricing. For testing, the occasional need to switch zones is worth the cost savings.
+
 ### Machine Types
 
 Edit `environments/[env].tfvars`:

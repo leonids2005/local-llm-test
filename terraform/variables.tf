@@ -10,9 +10,9 @@ variable "region" {
 }
 
 variable "zone" {
-  description = "GCP Zone"
+  description = "GCP Zone (for GPU spot instances, use less busy zones like us-central1-c, us-west1-b, us-east4-c)"
   type        = string
-  default     = "us-central1-a"
+  default     = "us-central1-c"
 }
 
 variable "environment" {
