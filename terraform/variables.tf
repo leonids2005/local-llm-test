@@ -10,9 +10,9 @@ variable "region" {
 }
 
 variable "zone" {
-  description = "GCP Zone"
+  description = "GCP Zone (for GPU spot instances, use less busy zones like us-central1-c, us-west1-b, us-east4-c)"
   type        = string
-  default     = "us-central1-a"
+  default     = "us-central1-c"
 }
 
 variable "environment" {
@@ -134,4 +134,29 @@ variable "firewall_source_ranges" {
   description = "Source IP ranges for firewall"
   type        = list(string)
   default     = ["0.0.0.0/0"]
+}
+
+variable "guest_accelerator" {
+  description = "GPU configuration"
+  type = object({
+    type  = string
+    count = number
+  })
+  default = null
+
+  validation {
+    condition = (
+      var.guest_accelerator == null ||
+      can(regex("^nvidia-tesla-(t4|p4|v100|p100|k80|a100)", var.guest_accelerator.type))
+    )
+    error_message = "GPU type must be a valid NVIDIA Tesla GPU (t4, p4, v100, p100, k80, a100)."
+  }
+
+  validation {
+    condition = (
+      var.guest_accelerator == null ||
+      (var.guest_accelerator.count >= 1 && var.guest_accelerator.count <= 8)
+    )
+    error_message = "GPU count must be between 1 and 8."
+  }
 }

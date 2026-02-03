@@ -166,14 +166,45 @@ You will need these values for GitHub secrets:
 ### 3. Create GCS Bucket for Terraform State
 
 ```bash
+# Enable Cloud Storage API
+gcloud services enable storage-api.googleapis.com
+
 # Create bucket for storing Terraform state
 gsutil mb gs://${PROJECT_ID}-terraform-state
 
 # Enable versioning (allows rolling back to previous states)
 gsutil versioning set on gs://${PROJECT_ID}-terraform-state
+
+# Grant service account access to the bucket
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:terraform-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
 ```
 
-### 4. Configure Terraform Backend
+**Note**: The service account needs `storage.admin` role to read/write Terraform state files in the GCS bucket.
+
+### 4. Enable IAP for Secure Access
+
+This project uses **Identity-Aware Proxy (IAP)** for secure access without public IP addresses.
+
+```bash
+# Enable IAP API
+gcloud services enable iap.googleapis.com
+
+# Grant yourself IAP tunnel user role
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member=user:YOUR_EMAIL \
+  --role=roles/iap.tunnelResourceAccessor
+```
+
+**What this enables:**
+- ✅ Connect to VMs without public IP addresses
+- ✅ Encrypted connection through Google's infrastructure
+- ✅ Authentication via Google Cloud IAM
+- ✅ Full audit logging
+- ✅ No firewall management needed
+
+### 5. Configure Terraform Backend
 
 If you plan to run Terraform locally, you can either:
 
@@ -200,7 +231,7 @@ If you only run Terraform via GitHub Actions, you can skip this step because the
 
 The [terraform/backend.tf](terraform/backend.tf) file is already configured to use this file and is safe to commit to GitHub.
 
-### 5. GitHub Secrets Setup
+### 6. GitHub Secrets Setup
 
 Go to your GitHub repository → Settings → Secrets and variables → Actions
 
@@ -211,9 +242,9 @@ Add these secrets:
 - `TF_STATE_BUCKET` - GCS bucket name for Terraform state (e.g. `YOUR_PROJECT_ID-terraform-state`)
 - `INFRACOST_API_KEY` - (Optional) From [infracost.io](https://infracost.io)
 
-Technically not secrets but because of public repo - I put them as secrets.
+These are configuration values (not credentials), but in a public repo we store them as GitHub Secrets for convenience.
 
-### 6. Deploy
+### 7. Deploy
 
 ```bash
 # For local testing
@@ -259,9 +290,13 @@ This repository is intended to be safe to fork:
 │   ├── backend.tf                  # GCS backend configuration
 │   └── versions.tf                 # Provider versions
 ├── environments/
-│   ├── dev.tfvars                  # Development environment
-│   ├── staging.tfvars              # Staging environment
+│   ├── dev.tfvars                  # Development environment (T4 GPU)
+│   ├── dev-a100-40.tfvars          # Dev with A100-40GB (planned)
+│   ├── dev-a100-80.tfvars          # Dev with A100-80GB (planned)
 │   └── prod.tfvars                 # Production environment
+├── scripts/
+│   └── connect-ollama.sh           # Helper script for IAP tunnel
+├── LLM_TESTING_PLAN.md             # Comprehensive testing strategy
 └── README.md                       # This file
 ```
 
@@ -287,23 +322,56 @@ This repository is intended to be safe to fork:
 - **Staging**: e2-medium, 20GB disk, ~$7-15/month
 - **Production**: e2-standard-4, 50GB SSD, ~$30-50/month
 
-## 🔒 Security Considerations
+## 🔒 Security Architecture
+
+This project implements **zero-trust security** with no public IP addresses on compute instances.
+
+### IAP Tunnel Access (Recommended)
+
+**Default Configuration:**
+- ✅ VM has NO public IP (`assign_external_ip = false`)
+- ✅ Firewall allows only IAP IP range (`35.235.240.0/20`)
+- ✅ All access through Google's Identity-Aware Proxy
+- ✅ Authentication via Google Cloud IAM
+
+**Connect to VM:**
+
+```bash
+# SSH to instance via IAP
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap
+
+# Check startup logs
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --command="sudo journalctl -u google-startup-scripts.service"
+```
+
+**Access Ollama API securely:**
+
+```bash
+# Create IAP tunnel to Ollama port
+gcloud compute start-iap-tunnel llm-server-dev 11434 \
+  --local-host-port=localhost:11434 \
+  --zone=us-central1-a
+
+# In another terminal, access Ollama locally
+curl http://localhost:11434/api/tags
+
+# Or use with Claude Code (see Integration section below)
+```
 
 ### Network Security
 
 ```hcl
-# Restrict firewall access to specific IPs
-firewall_source_ranges = ["YOUR_OFFICE_IP/32"]
+# Current configuration (in dev.tfvars):
+assign_external_ip = false              # No public IP
+firewall_source_ranges = ["35.235.240.0/20"]  # IAP range only
 
-# Use VPC peering for production
+# For additional security in production:
 network = "projects/YOUR_PROJECT/global/networks/private-vpc"
-```
-
-### SSH Access
-
-```hcl
-# Add your SSH key to dev.tfvars
-ssh_keys = "username:ssh-rsa AAAAB3NzaC1yc2E... user@example.com"
 ```
 
 ### Service Account Permissions
@@ -375,7 +443,180 @@ See [examples/](examples/) directory for:
 - Model loading scripts
 - Health check endpoints
 
+## 🔌 Integration with Claude Code
+
+Ollama v0.14.0+ supports the **Anthropic Messages API**, allowing Claude Code to work directly with your self-hosted models.
+
+### Prerequisites
+
+**Install Claude Code** (if not already installed):
+```bash
+# macOS/Linux/WSL
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Windows PowerShell
+irm https://claude.ai/install.ps1 | iex
+```
+
+### Quick Start
+
+```bash
+# 1. Create IAP tunnel to Ollama
+gcloud compute start-iap-tunnel llm-server-dev 11434 \
+  --local-host-port=localhost:11434 \
+  --zone=us-central1-a &
+
+# 2. Configure Claude Code (environment variables)
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_BASE_URL=http://localhost:11434
+
+# 3. Use Claude Code with your self-hosted models
+claude --model qwen2.5-coder:7b
+```
+
+### Recommended Models
+
+- **qwen2.5-coder:7b** - Excellent for code generation (7GB VRAM)
+- **qwen3-coder** - Latest Qwen coding model
+- **glm4** - Strong coding agent capabilities
+
+**Note**: Models should have at least 32K token context length for optimal Claude Code performance.
+
+### Supported Features
+
+✅ **Tool calling** - Function/tool execution
+✅ **Streaming** - Real-time response streaming
+✅ **Multi-turn conversations** - Context retention
+✅ **System prompts** - Custom instructions
+✅ **Extended thinking** - Reasoning mode
+✅ **Vision** - If model supports multimodal
+
+### Complete Workflow
+
+```bash
+# 1. Start IAP tunnel (run in background or separate terminal)
+gcloud compute start-iap-tunnel llm-server-dev 11434 \
+  --local-host-port=localhost:11434 \
+  --zone=us-central1-a &
+
+# 2. Set environment variables (add to ~/.bashrc or ~/.zshrc for persistence)
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_BASE_URL=http://localhost:11434
+
+# 3. Verify connection
+curl http://localhost:11434/api/tags
+
+# 4. Use Claude Code
+claude --model qwen2.5-coder:7b
+
+# 5. When done, stop tunnel
+pkill -f "11434:localhost:11434"
+```
+
+### Persistent Configuration
+
+Add to your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.bash_profile`):
+
+```bash
+# Claude Code with Ollama
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_BASE_URL=http://localhost:11434
+
+# Optional: Create alias for tunnel
+alias ollama-connect='gcloud compute start-iap-tunnel llm-server-dev 11434 --local-host-port=localhost:11434 --zone=us-central1-a &'
+alias ollama-disconnect='pkill -f "11434:localhost:11434"'
+```
+
+Then:
+```bash
+# Start tunnel
+ollama-connect
+
+# Use Claude Code
+claude --model qwen2.5-coder:7b
+
+# Stop tunnel
+ollama-disconnect
+```
+
+### Helper Script
+
+Create `scripts/connect-ollama.sh` for automated setup:
+
+```bash
+#!/bin/bash
+# Connect to Ollama via IAP tunnel and configure Claude Code
+
+INSTANCE="llm-server-dev"
+ZONE="us-central1-a"
+PORT="11434"
+
+echo "🔒 Creating secure IAP tunnel to Ollama..."
+
+# Check if tunnel already exists
+if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+    echo "⚠️  Port $PORT already in use. Tunnel may already be running."
+    echo "   To kill: pkill -f '$PORT:localhost:$PORT'"
+    exit 1
+fi
+
+# Create tunnel
+gcloud compute start-iap-tunnel $INSTANCE $PORT \
+  --local-host-port=localhost:$PORT \
+  --zone=$ZONE &
+
+TUNNEL_PID=$!
+sleep 2
+
+# Verify tunnel
+if ps -p $TUNNEL_PID > /dev/null; then
+    echo "✅ Tunnel created (PID: $TUNNEL_PID)"
+    echo "🌐 Ollama API: http://localhost:$PORT"
+    echo ""
+    echo "📋 Quick start:"
+    echo "   export ANTHROPIC_AUTH_TOKEN=ollama"
+    echo "   export ANTHROPIC_BASE_URL=http://localhost:$PORT"
+    echo "   claude --model qwen2.5-coder:7b"
+    echo ""
+    echo "⏹️  To stop: kill $TUNNEL_PID or pkill -f '$PORT:localhost:$PORT'"
+
+    # Keep tunnel open
+    wait $TUNNEL_PID
+else
+    echo "❌ Failed to create tunnel"
+    exit 1
+fi
+```
+
+Make it executable:
+```bash
+chmod +x scripts/connect-ollama.sh
+./scripts/connect-ollama.sh
+```
+
 ## 🛠️ Customization
+
+### GPU Spot Instance Zones
+
+GPU spot instances can have availability issues in busy zones. The configuration uses **us-central1-c** by default, which typically has better availability than us-central1-a.
+
+**If you encounter `ZONE_RESOURCE_POOL_EXHAUSTED` errors**, try these zones (in order):
+1. `us-central1-c` (default, good balance)
+2. `us-west1-b` (often available)
+3. `us-east4-c` (less congested)
+4. `europe-west4-a` (EU, usually available)
+
+**To change zone**, edit [environments/dev.tfvars](environments/dev.tfvars):
+```hcl
+zone = "us-west1-b"
+```
+
+Then redeploy:
+```bash
+terraform apply -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+```
+
+**Note**: Using SPOT instances with GPUs saves ~60-70% vs STANDARD pricing. For testing, the occasional need to switch zones is worth the cost savings.
 
 ### Machine Types
 
@@ -449,18 +690,50 @@ terraform destroy -auto-approve
 
 ## 📊 Monitoring & Logging
 
-### Access Instance
+### Access Instance (via IAP)
 
 ```bash
-# SSH to instance
-gcloud compute ssh spot-instance-dev --zone=us-central1-a
+# SSH to instance via IAP tunnel
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap
 
 # View startup script logs
-sudo journalctl -u google-startup-scripts.service
+sudo journalctl -u google-startup-scripts.service -f
 
 # Check Docker containers
 sudo docker ps
-sudo docker logs ollama
+sudo docker logs ollama -f
+
+# Check GPU usage (if GPU instance)
+nvidia-smi
+
+# Test Ollama locally on VM
+curl http://localhost:11434/api/tags
+```
+
+### Remote Commands via IAP
+
+Execute commands without interactive shell:
+
+```bash
+# Check GPU status
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --command="nvidia-smi"
+
+# List available models
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --command="docker exec ollama ollama list"
+
+# Check system resources
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --command="free -h && df -h"
 ```
 
 ### GCP Monitoring
@@ -524,20 +797,92 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Infracost](https://www.infracost.io/) for cost estimation
 - [Checkov](https://www.checkov.io/) for security scanning
 
+## 🧪 Testing LLMs
+
+See [LLM_TESTING_PLAN.md](LLM_TESTING_PLAN.md) for:
+- Baseline coding tests (10 minutes per model)
+- GPU tier recommendations (T4, A100-40GB, A100-80GB)
+- Performance benchmarks
+- Cost estimates for testing
+- Model comparison matrix
+
+**Quick Test**:
+```bash
+# Connect via IAP tunnel
+gcloud compute start-iap-tunnel llm-server-dev 11434 \
+  --local-host-port=localhost:11434 \
+  --zone=us-central1-a &
+
+# Test simple prompt
+curl http://localhost:11434/api/generate -d '{
+  "model": "qwen2.5-coder:7b",
+  "prompt": "Write a Python function to check if a number is prime",
+  "stream": false
+}'
+```
+
 ## ⚠️ Important Notes
 
 - **Spot Instances**: Can be terminated at any time by GCP. Not suitable for critical production workloads without proper failover.
 - **Data Privacy**: Ensure compliance with your organization's data handling policies.
-- **Costs**: Monitor your GCP billing. Spot instances are cheap but can add up.
-- **Security**: Always restrict firewall access to known IPs in production.
+- **Costs**: Monitor your GCP billing. GPU instances can be expensive - use on-demand testing (start/stop).
+- **Security**: Default configuration uses IAP with no public IP - most secure approach.
+- **IAP Access**: Requires `roles/iap.tunnelResourceAccessor` permission for each user.
 - **Secrets**: Never commit GCP credentials, API keys, or sensitive data to git.
 
 ## 📚 Additional Resources
 
 - [GCP Spot VM Documentation](https://cloud.google.com/compute/docs/instances/spot)
+- [GCP IAP TCP Forwarding](https://cloud.google.com/iap/docs/using-tcp-forwarding)
+- [GCP GPU Documentation](https://cloud.google.com/compute/docs/gpus)
 - [Terraform GCP Provider](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
-- [Running LLMs Locally Guide](https://github.com/jmorganca/ollama)
+- [Ollama Documentation](https://github.com/ollama/ollama)
+- [Ollama + Claude Integration](https://ollama.com/blog/claude)
+- [Claude Code Documentation](https://docs.anthropic.com/claude-code)
 - [Open Source LLM Leaderboard](https://huggingface.co/spaces/HuggingFaceH4/open_llm_leaderboard)
+
+## 🚀 Quick Reference
+
+### Daily Commands
+
+```bash
+# Start IAP tunnel to Ollama
+gcloud compute start-iap-tunnel llm-server-dev 11434 \
+  --local-host-port=localhost:11434 --zone=us-central1-a &
+
+# Configure Claude Code for Ollama
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_BASE_URL=http://localhost:11434
+
+# Use Claude Code with self-hosted model
+claude --model qwen2.5-coder:7b
+
+# Or test with curl
+curl http://localhost:11434/api/tags
+
+# SSH to VM
+gcloud compute ssh llm-server-dev --zone=us-central1-a --tunnel-through-iap
+
+# Check GPU status
+gcloud compute ssh llm-server-dev --zone=us-central1-a \
+  --tunnel-through-iap --command="nvidia-smi"
+
+# Stop tunnel
+pkill -f "11434:localhost:11434"
+```
+
+### Infrastructure Management
+
+```bash
+# Plan changes
+terraform plan -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+
+# Apply changes
+terraform apply -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+
+# Destroy (saves costs when not in use)
+terraform destroy -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+```
 
 ---
 

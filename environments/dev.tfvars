@@ -1,11 +1,24 @@
 environment        = "dev"
 instance_name      = "llm-server"
-machine_type       = "e2-medium"
-boot_disk_size     = 20
+machine_type       = "n1-standard-4"
+boot_disk_size     = 100  # Increased for LLM models
 boot_disk_type     = "pd-standard"
-termination_action = "DELETE" # Don't preserve in dev to save costs
+termination_action = "STOP" # Preserve GPU setup and downloaded models (manually stop when not in use)
 
-# LLM-specific startup script
+# Zone selection: Use less busy zones for better GPU spot availability
+# If you get ZONE_RESOURCE_POOL_EXHAUSTED, try: us-west1-b, us-east4-c, europe-west4-a
+zone = "us-central1-c"
+
+# Security: No public IP, use IAP tunneling
+assign_external_ip = false
+
+# T4 GPU for LLM inference
+guest_accelerator = {
+  type  = "nvidia-tesla-t4"
+  count = 1
+}
+
+# LLM-specific startup script with GPU support
 startup_script = <<-EOF
   #!/bin/bash
   set -e
@@ -17,18 +30,47 @@ startup_script = <<-EOF
     ca-certificates \
     curl \
     gnupg \
-    lsb-release
+    lsb-release \
+    pciutils
+
+  # Install NVIDIA drivers for T4 GPU (using modern signed-by method)
+  curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
+    gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
+  apt-get update
+  apt-get install -y cuda-drivers
+
+  # Install NVIDIA Container Toolkit for Docker GPU support
+  distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  apt-get update
+  apt-get install -y nvidia-container-toolkit
 
   # Install Docker
   curl -fsSL https://get.docker.com -o get-docker.sh
   sh get-docker.sh
 
-  # Start Docker service
-  systemctl start docker
-  systemctl enable docker
+  # Configure Docker to use NVIDIA runtime
+  nvidia-ctk runtime configure --runtime=docker
+  systemctl restart docker
 
-  # Pull and run Ollama (lightweight LLM runtime)
+  # Verify GPU is accessible (wait for drivers to load)
+  echo "Waiting for GPU drivers to initialize..."
+  for i in {1..30}; do
+    if nvidia-smi; then
+      echo "GPU initialized successfully"
+      break
+    fi
+    echo "Waiting for GPU drivers to load... ($i/30)"
+    sleep 2
+  done
+
+  # Pull and run Ollama with GPU support
   docker run -d \
+    --gpus all \
     --name ollama \
     --restart always \
     -p 11434:11434 \
@@ -36,10 +78,15 @@ startup_script = <<-EOF
     ollama/ollama
 
   # Wait for Ollama to start
-  sleep 10
+  sleep 15
 
-  # Pull a small model for testing (Llama 2 7B)
-  docker exec ollama ollama pull llama2
+  # Pull a model for testing only if not already present (saves bandwidth on recreates)
+  if ! docker exec ollama ollama list | grep -q llama2; then
+    echo "Pulling llama2 model (first boot only)..."
+    docker exec ollama ollama pull llama2
+  else
+    echo "llama2 model already present, skipping download"
+  fi
 
   # Optional: Install nginx as reverse proxy
   apt-get install -y nginx
@@ -47,19 +94,22 @@ startup_script = <<-EOF
   systemctl enable nginx
 
   # Log completion
-  echo "LLM server setup completed at $(date)" >> /var/log/llm-setup.log
+  echo "LLM server with GPU setup completed at $(date)" >> /var/log/llm-setup.log
+  echo "GPU Info:" >> /var/log/llm-setup.log
+  nvidia-smi >> /var/log/llm-setup.log
 EOF
 
-# Allow HTTP, HTTPS, and SSH access
+# Allow IAP access (Google's IP range for IAP)
 firewall_rules = [
   {
     protocol = "tcp"
-    ports    = ["80", "443", "22", "11434"]
+    ports    = ["22"]  # SSH via IAP
   }
 ]
 
-# Open for development (restrict this in production!)
-firewall_source_ranges = ["0.0.0.0/0"]
+# IAP IP range (required for IAP TCP forwarding)
+# This is Google's official IAP range, not public internet
+firewall_source_ranges = ["35.235.240.0/20"]
 
 labels = {
   team        = "engineering"
