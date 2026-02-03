@@ -9,8 +9,9 @@ termination_action = "STOP" # Preserve GPU setup and downloaded models (manually
 # If you get ZONE_RESOURCE_POOL_EXHAUSTED, try: us-west1-b, us-east4-c, europe-west4-a
 zone = "us-central1-c"
 
-# Security: No public IP, use IAP tunneling
+# Security: No public IP, use IAP tunneling + Cloud NAT for outbound access
 assign_external_ip = false
+enable_cloud_nat   = true  # ~$5-6/month for secure outbound internet access
 
 # T4 GPU for LLM inference
 guest_accelerator = {

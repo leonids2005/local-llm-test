@@ -160,3 +160,9 @@ variable "guest_accelerator" {
     error_message = "GPU count must be between 1 and 8."
   }
 }
+
+variable "enable_cloud_nat" {
+  description = "Enable Cloud NAT for outbound internet access without external IP (~$5-6/month)"
+  type        = bool
+  default     = false
+}

@@ -114,3 +114,27 @@ resource "google_compute_firewall" "spot_instance" {
   source_ranges = var.firewall_source_ranges
   target_tags   = concat(var.tags, [var.environment])
 }
+
+# Cloud Router (required for Cloud NAT)
+resource "google_compute_router" "nat_router" {
+  count   = var.enable_cloud_nat ? 1 : 0
+  name    = "${var.instance_name}-${var.environment}-nat-router"
+  region  = var.region
+  network = var.network
+}
+
+# Cloud NAT for outbound internet access without external IP
+resource "google_compute_router_nat" "nat" {
+  count  = var.enable_cloud_nat ? 1 : 0
+  name   = "${var.instance_name}-${var.environment}-nat"
+  router = google_compute_router.nat_router[0].name
+  region = var.region
+
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
