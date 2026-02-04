@@ -81,7 +81,7 @@ resource "google_compute_instance" "spot_instance" {
   }
 
   shielded_instance_config {
-    enable_secure_boot          = true
+    enable_secure_boot          = false  # Disabled for GPU instances (NVIDIA drivers are unsigned)
     enable_vtpm                 = true
     enable_integrity_monitoring = true
   }
