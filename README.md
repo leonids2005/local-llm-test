@@ -857,8 +857,8 @@ curl http://localhost:11434/api/generate -d '{
 
 ```bash
 # Start IAP tunnel to Ollama
-gcloud compute start-iap-tunnel llm-server-dev 11434 \
-  --local-host-port=localhost:11434 --zone=us-central1-a &
+
+gcloud compute ssh llm-server-dev   --zone=us-central1-a   --tunnel-through-iap   --project=local-llm-test-486215   --ssh-flag="-L 11434:localhost:11434"
 
 # Configure Claude Code for Ollama
 export ANTHROPIC_AUTH_TOKEN=ollama
@@ -869,6 +869,9 @@ claude --model qwen2.5-coder:7b
 
 # Or test with curl
 curl http://localhost:11434/api/tags
+
+# List models
+curl http://localhost:11434/v1/models 
 
 # SSH to VM
 gcloud compute ssh llm-server-dev --zone=us-central1-a --tunnel-through-iap

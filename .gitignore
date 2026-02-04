@@ -32,6 +32,8 @@ terraform.rc
 !package.json
 !package-lock.json
 !tsconfig.json
+!.claude/settings.json
+!.claude/settings.local.json
 terraform-key.json
 *-key.json
 credentials.json
