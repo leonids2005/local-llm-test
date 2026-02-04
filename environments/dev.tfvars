@@ -33,18 +33,34 @@ startup_script = <<-EOF
     curl \
     gnupg \
     lsb-release \
-    pciutils
+    pciutils \
+    linux-headers-$(uname -r)
 
-  # Install NVIDIA drivers for T4 GPU (skip if already installed)
-  if ! command -v nvidia-smi &> /dev/null; then
-    echo "Installing NVIDIA drivers..."
-    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
-      gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
-    apt-get update
-    apt-get install -y cuda-drivers
+  # Install NVIDIA drivers for T4 GPU (skip if already working)
+  if ! nvidia-smi &> /dev/null; then
+    echo "NVIDIA drivers not loaded, installing/configuring..."
+
+    # Add CUDA repository if not present
+    if [ ! -f /etc/apt/sources.list.d/cuda.list ]; then
+      curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | \
+        gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+      echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 /" > /etc/apt/sources.list.d/cuda.list
+      apt-get update
+    fi
+
+    # Install drivers if not present
+    if ! dpkg -l | grep -q nvidia-driver; then
+      echo "Installing NVIDIA drivers..."
+      apt-get install -y cuda-drivers
+    fi
+
+    # Load the nvidia kernel module if not loaded
+    if ! lsmod | grep -q nvidia; then
+      echo "Loading NVIDIA kernel modules..."
+      modprobe nvidia
+    fi
   else
-    echo "NVIDIA drivers already installed, skipping"
+    echo "NVIDIA drivers already loaded and working"
   fi
 
   # Install NVIDIA Container Toolkit for Docker GPU support (skip if already installed)
