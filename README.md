@@ -267,6 +267,16 @@ git push origin feature/initial-deployment
 # Merge PR to main → Automatically deploys to dev environment
 ```
 
+#### Check Startup Script Status
+
+```bash
+# Check if the startup script is still running
+sudo systemctl status google-startup-scripts.service
+
+# Watch the startup script logs in real-time
+sudo journalctl -u google-startup-scripts.service -f
+```
+
 #### Public Repo Notes (Fork Safety)
 
 This repository is intended to be safe to fork:
