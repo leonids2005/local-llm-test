@@ -57,7 +57,7 @@ startup_script = <<-EOF
     LIST_FILE="/etc/apt/sources.list.d/nvidia-container-toolkit.list"
     TMP_LIST="$(mktemp)"
 
-    curl -fsSL "https://nvidia.github.io/libnvidia-container/stable/deb/${ARCH}/libnvidia-container.list" \
+    curl -fsSL "https://nvidia.github.io/libnvidia-container/stable/deb/$${ARCH}/libnvidia-container.list" \
       | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
       > "$TMP_LIST"
 
