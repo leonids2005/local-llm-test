@@ -155,7 +155,7 @@ variable "guest_accelerator" {
   validation {
     condition = (
       var.guest_accelerator == null ||
-      (var.guest_accelerator.count >= 1 && var.guest_accelerator.count <= 8)
+      can(var.guest_accelerator.count >= 1 && var.guest_accelerator.count <= 8)
     )
     error_message = "GPU count must be between 1 and 8."
   }
