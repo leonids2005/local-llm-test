@@ -882,6 +882,15 @@ gcloud compute ssh llm-server-dev --zone=us-central1-a \
 
 # Stop tunnel
 pkill -f "11434:localhost:11434"
+
+# Check GPU availability across zones
+# Note: This shows where the GPU type exists, not real-time spot capacity
+# You'll need to try creating instances to verify actual availability
+gcloud compute accelerator-types list --filter="name:nvidia-a100-80gb" --format="table(zone, name, description)"
+
+# Alternative: Check all GPU types in a specific zone
+gcloud compute accelerator-types list --filter="zone:us-east4-c" --format="table(name, description, zone)"
+
 ```
 
 ### Infrastructure Management

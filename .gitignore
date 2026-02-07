@@ -95,6 +95,7 @@ secrets/
 *password*
 *credentials*
 
+local-docs/
 # But allow these specific files
 !README.md
 !LICENSE

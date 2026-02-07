@@ -6,8 +6,8 @@ boot_disk_type     = "pd-ssd"  # SSD for faster model loading
 termination_action = "STOP" # Preserve GPU setup and downloaded models
 
 # Zone selection: Use less busy zones for better GPU spot availability
-# A100-80GB availability: us-central1-a, us-central1-c, us-west1-b
-zone = "us-central1-c"
+# A100-80GB availability: us-central1-a, us-central1-c, us-west1-b, us-east4-c
+zone = "us-east4-c"
 
 # Security: No public IP, use IAP tunneling + Cloud NAT for outbound access
 assign_external_ip = false
