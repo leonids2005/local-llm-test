@@ -1,23 +1,18 @@
 environment        = "dev"
 instance_name      = "llm-server"
-machine_type       = "a2-ultragpu-2g"
-boot_disk_size     = 300  # Increased for LLM models
-boot_disk_type     = "pd-standard"
-termination_action = "STOP" # Preserve GPU setup and downloaded models (manually stop when not in use)
+machine_type       = "a2-ultragpu-2g"  # 2x NVIDIA A100 80GB (160GB total VRAM)
+boot_disk_size     = 300  # Persistent disk for LLM models (~200GB needed)
+boot_disk_type     = "pd-ssd"  # SSD for faster model loading
+termination_action = "STOP" # Preserve GPU setup and downloaded models
 
 # Zone selection: Use less busy zones for better GPU spot availability
-# If you get ZONE_RESOURCE_POOL_EXHAUSTED, try: us-west1-b, us-east4-c, europe-west4-a
+# A100-80GB availability: us-central1-a, us-central1-c, us-west1-b
 zone = "us-central1-c"
 
 # Security: No public IP, use IAP tunneling + Cloud NAT for outbound access
 assign_external_ip = false
 enable_cloud_nat   = true  # ~$5-6/month for secure outbound internet access
 
-# T4 GPU for LLM inference
-guest_accelerator = {
-  type  = "nvidia-tesla-t4"
-  count = 1
-}
 
 # LLM-specific startup script with GPU support
 startup_script = <<-EOF
@@ -36,7 +31,7 @@ startup_script = <<-EOF
     pciutils \
     linux-headers-$(uname -r)
 
-  # Install NVIDIA drivers for T4 GPU (skip if already working)
+  # Install NVIDIA drivers for A100 GPU (skip if already working)
   if ! nvidia-smi &> /dev/null; then
     echo "NVIDIA drivers not loaded, installing/configuring..."
 
@@ -131,13 +126,11 @@ startup_script = <<-EOF
     echo "Ollama container already running, skipping"
   fi
 
-  # Pull a model for testing only if not already present (saves bandwidth on recreates)
-  if ! docker exec ollama ollama list | grep -q llama2; then
-    echo "Pulling llama2 model (first boot only)..."
-    docker exec ollama ollama pull llama2
-  else
-    echo "llama2 model already present, skipping download"
-  fi
+  # Note: Models will be pulled manually after instance is ready
+  # gpt-oss:120b (65GB) and MiniMax-M2.1 Q4_K_M (130GB)
+  echo "Instance ready. Pull models manually:"
+  echo "  ollama pull gpt-oss:120b"
+  echo "  ollama pull hf.co/John1604/MiniMax-M2.1-gguf:q4_k_m"
 
   # Optional: Install nginx as reverse proxy (skip if already installed)
   if ! command -v nginx &> /dev/null; then
@@ -150,7 +143,7 @@ startup_script = <<-EOF
   fi
 
   # Log completion
-  echo "LLM server with GPU setup completed at $(date)" >> /var/log/llm-setup.log
+  echo "LLM server with A100 GPU setup completed at $(date)" >> /var/log/llm-setup.log
   echo "GPU Info:" >> /var/log/llm-setup.log
   nvidia-smi >> /var/log/llm-setup.log
 EOF
