@@ -132,15 +132,6 @@ startup_script = <<-EOF
   echo "  ollama pull gpt-oss:120b"
   echo "  ollama pull hf.co/John1604/MiniMax-M2.1-gguf:q4_k_m"
 
-  # Optional: Install nginx as reverse proxy (skip if already installed)
-  if ! command -v nginx &> /dev/null; then
-    echo "Installing nginx..."
-    apt-get install -y nginx
-    systemctl start nginx
-    systemctl enable nginx
-  else
-    echo "nginx already installed, skipping"
-  fi
 
   # Log completion
   echo "LLM server with A100 GPU setup completed at $(date)" >> /var/log/llm-setup.log
