@@ -1,7 +1,7 @@
 environment        = "dev"
 instance_name      = "llm-server"
-machine_type       = "n1-standard-4"
-boot_disk_size     = 100  # Increased for LLM models
+machine_type       = "a2-ultragpu-2g"
+boot_disk_size     = 300  # Increased for LLM models
 boot_disk_type     = "pd-standard"
 termination_action = "STOP" # Preserve GPU setup and downloaded models (manually stop when not in use)
 
