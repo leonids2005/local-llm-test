@@ -1,7 +1,7 @@
 environment        = "dev"
 instance_name      = "llm-server"
 machine_type       = "a2-ultragpu-1g"  # 1x NVIDIA A100 80GB (80GB VRAM)
-boot_disk_size     = 300  # Persistent disk for LLM models
+boot_disk_size     = 250  # Persistent disk for LLM models
 boot_disk_type     = "pd-ssd"  # SSD for faster model loading
 termination_action = "STOP" # Preserve GPU setup and downloaded models
 
