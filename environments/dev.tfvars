@@ -21,6 +21,9 @@ startup_script = <<-EOF
   set -e
   export DEBIAN_FRONTEND=noninteractive
 
+  # Force IPv4 for apt (Cloud NAT doesn't support IPv6)
+  echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
   # Update system
   apt-get update
   apt-get install -y \
