@@ -147,9 +147,9 @@ variable "guest_accelerator" {
   validation {
     condition = (
       var.guest_accelerator == null ||
-      can(regex("^nvidia-tesla-(t4|p4|v100|p100|k80|a100)", var.guest_accelerator.type))
+      can(regex("^nvidia-(tesla-)?(a100-80gb|a100|tesla-t4|t4|tesla-p4|p4|tesla-v100|v100|tesla-p100|p100|tesla-k80|k80)", var.guest_accelerator.type))
     )
-    error_message = "GPU type must be a valid NVIDIA Tesla GPU (t4, p4, v100, p100, k80, a100)."
+    error_message = "GPU type must be a valid NVIDIA GPU (e.g., nvidia-a100-80gb, nvidia-tesla-t4, nvidia-tesla-v100)."
   }
 
   validation {

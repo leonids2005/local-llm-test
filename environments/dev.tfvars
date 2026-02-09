@@ -1,18 +1,19 @@
 environment        = "dev"
 instance_name      = "llm-server"
-machine_type       = "a2-ultragpu-2g"  # 2x NVIDIA A100 80GB (160GB total VRAM)
-boot_disk_size     = 300  # Persistent disk for LLM models (~200GB needed)
+machine_type       = "a2-ultragpu-1g"  # 1x NVIDIA A100 80GB (80GB VRAM)
+boot_disk_size     = 300  # Persistent disk for LLM models
 boot_disk_type     = "pd-ssd"  # SSD for faster model loading
 termination_action = "STOP" # Preserve GPU setup and downloaded models
 
-# Zone selection: Use less busy zones for better GPU spot availability
-# A100-80GB availability: us-central1-a, us-central1-c, us-west1-b, us-east4-c
+# Zone selection: us-east4 - only region where we got A100-80GB quota approved
+# Requested us-central1 but was denied, us-east4 partially approved (1 GPU)
 zone = "us-east4-c"
 
 # Security: No public IP, use IAP tunneling + Cloud NAT for outbound access
 assign_external_ip = false
 enable_cloud_nat   = true  # ~$5-6/month for secure outbound internet access
 
+# GPU: a2-ultragpu-1g includes 1x A100-80GB (no guest_accelerator needed)
 
 # LLM-specific startup script with GPU support
 startup_script = <<-EOF
@@ -127,11 +128,9 @@ startup_script = <<-EOF
   fi
 
   # Note: Models will be pulled manually after instance is ready
-  # gpt-oss:120b (65GB) and MiniMax-M2.1 Q4_K_M (130GB)
-  echo "Instance ready. Pull models manually:"
-  echo "  ollama pull gpt-oss:120b"
-  echo "  ollama pull hf.co/John1604/MiniMax-M2.1-gguf:q4_k_m"
-
+  # With 1x A100-80GB (80GB VRAM), we can run gpt-oss:120b (65GB)
+  echo "Instance ready. Pull model manually:"
+  echo "  docker exec ollama ollama pull gpt-oss:120b"
 
   # Log completion
   echo "LLM server with A100 GPU setup completed at $(date)" >> /var/log/llm-setup.log
