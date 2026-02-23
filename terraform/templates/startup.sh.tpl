@@ -130,8 +130,7 @@ else
   echo "Ollama container already running, skipping"
 fi
 
-echo "Instance ready. Pull model manually:"
-echo "  docker exec ollama ollama pull ${ollama_model}"
+
 %{ endif }
 
 %{ if inference_engine == "vllm" }
@@ -157,7 +156,9 @@ if ! docker ps | grep -q vllm; then
       --tensor-parallel-size ${vllm_tensor_parallel_size} \
       --gpu-memory-utilization ${vllm_gpu_memory_utilization} \
       --max-model-len ${vllm_max_model_len} \
+%{ if vllm_trust_remote_code }
       --trust-remote-code \
+%{ endif }
       --enable-auto-tool-choice \
       --tool-call-parser ${vllm_tool_call_parser} \
       --reasoning-parser ${vllm_reasoning_parser}
@@ -174,7 +175,9 @@ if ! docker ps | grep -q vllm; then
       --tensor-parallel-size ${vllm_tensor_parallel_size} \
       --gpu-memory-utilization ${vllm_gpu_memory_utilization} \
       --max-model-len ${vllm_max_model_len} \
+%{ if vllm_trust_remote_code }
       --trust-remote-code \
+%{ endif }
       --enable-auto-tool-choice \
       --tool-call-parser ${vllm_tool_call_parser} \
       --reasoning-parser ${vllm_reasoning_parser}

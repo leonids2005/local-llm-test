@@ -156,6 +156,12 @@ variable "vllm_max_model_len" {
   default     = 65536
 }
 
+variable "vllm_trust_remote_code" {
+  description = "Pass --trust-remote-code to vLLM (required by some community models, use with caution)"
+  type        = bool
+  default     = false
+}
+
 variable "vllm_tool_call_parser" {
   description = "vLLM tool call parser name"
   type        = string
