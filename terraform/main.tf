@@ -17,16 +17,16 @@ locals {
   effective_deletion_protection = var.deletion_protection != null ? var.deletion_protection : var.environment == "prod"
 
   rendered_startup_script = var.startup_script_template_enabled ? templatefile("${path.module}/templates/startup.sh.tpl", {
-    project_id                    = var.project_id
-    inference_engine             = lower(var.inference_engine)
-    ollama_model                 = var.ollama_model
-    vllm_model                   = var.vllm_model
-    vllm_tensor_parallel_size    = var.vllm_tensor_parallel_size
-    vllm_gpu_memory_utilization  = var.vllm_gpu_memory_utilization
-    vllm_max_model_len           = var.vllm_max_model_len
-    vllm_tool_call_parser        = var.vllm_tool_call_parser
-    vllm_reasoning_parser        = var.vllm_reasoning_parser
-    hf_token_secret_name         = var.hf_token_secret_name
+    project_id                  = var.project_id
+    inference_engine            = lower(var.inference_engine)
+    ollama_model                = var.ollama_model
+    vllm_model                  = var.vllm_model
+    vllm_tensor_parallel_size   = var.vllm_tensor_parallel_size
+    vllm_gpu_memory_utilization = var.vllm_gpu_memory_utilization
+    vllm_max_model_len          = var.vllm_max_model_len
+    vllm_tool_call_parser       = var.vllm_tool_call_parser
+    vllm_reasoning_parser       = var.vllm_reasoning_parser
+    hf_token_secret_name        = var.hf_token_secret_name
   }) : var.startup_script
 }
 
@@ -50,9 +50,9 @@ resource "google_compute_subnetwork" "dedicated_subnet" {
 #checkov:skip=CKV_GCP_38:Customer-managed encryption keys are overkill for dev/test environments
 #checkov:skip=CKV_GCP_40:False positive - external IP is controlled by assign_external_ip variable (set to false in dev)
 resource "google_compute_instance" "spot_instance" {
-  name         = "${var.instance_name}-${var.environment}"
-  machine_type = var.machine_type
-  zone         = var.zone
+  name                = "${var.instance_name}-${var.environment}"
+  machine_type        = var.machine_type
+  zone                = var.zone
   deletion_protection = local.effective_deletion_protection
 
   tags   = concat(var.tags, [var.environment])
@@ -63,7 +63,7 @@ resource "google_compute_instance" "spot_instance" {
     automatic_restart           = false
     provisioning_model          = "SPOT"
     instance_termination_action = var.termination_action
-    on_host_maintenance         = "TERMINATE"  # Required for GPUs, safe for all spot instances
+    on_host_maintenance         = "TERMINATE" # Required for GPUs, safe for all spot instances
   }
 
   dynamic "guest_accelerator" {
@@ -108,7 +108,7 @@ resource "google_compute_instance" "spot_instance" {
   }
 
   shielded_instance_config {
-    enable_secure_boot          = false  # Disabled for GPU instances (NVIDIA drivers are unsigned)
+    enable_secure_boot          = false # Disabled for GPU instances (NVIDIA drivers are unsigned)
     enable_vtpm                 = true
     enable_integrity_monitoring = true
   }

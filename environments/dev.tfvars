@@ -1,10 +1,10 @@
 environment        = "dev"
 instance_name      = "llm-server"
-region             = "us-east4"  # Must match zone region for Cloud NAT
-machine_type       = "a2-ultragpu-2g"  # 2x NVIDIA A100 80GB (160GB VRAM total)
-boot_disk_size     = 250  # Persistent disk for LLM models
-boot_disk_type     = "pd-ssd"  # SSD for faster model loading
-termination_action = "STOP" # Preserve GPU setup and downloaded models
+region             = "us-east4"       # Must match zone region for Cloud NAT
+machine_type       = "a2-ultragpu-2g" # 2x NVIDIA A100 80GB (160GB VRAM total)
+boot_disk_size     = 250              # Persistent disk for LLM models
+boot_disk_type     = "pd-ssd"         # SSD for faster model loading
+termination_action = "STOP"           # Preserve GPU setup and downloaded models
 
 # Zone selection: us-east4 - only region where we got A100-80GB quota approved
 # Requested us-central1 but was denied, us-east4 partially approved (1 GPU)
@@ -12,7 +12,7 @@ zone = "us-east4-c"
 
 # Security: No public IP, use IAP tunneling + Cloud NAT for outbound access
 assign_external_ip = false
-enable_cloud_nat   = true  # ~$5-6/month for secure outbound internet access
+enable_cloud_nat   = true # ~$5-6/month for secure outbound internet access
 
 # Dedicated VPC/subnet for network isolation
 vpc_cidr    = "10.0.1.0/24"
@@ -33,7 +33,7 @@ vllm_max_model_len = 92544
 firewall_rules = [
   {
     protocol = "tcp"
-    ports    = ["22"]  # SSH via IAP
+    ports    = ["22"] # SSH via IAP
   }
 ]
 
