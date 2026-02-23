@@ -24,6 +24,7 @@ locals {
     vllm_tensor_parallel_size   = var.vllm_tensor_parallel_size
     vllm_gpu_memory_utilization = var.vllm_gpu_memory_utilization
     vllm_max_model_len          = var.vllm_max_model_len
+    vllm_trust_remote_code      = var.vllm_trust_remote_code
     vllm_tool_call_parser       = var.vllm_tool_call_parser
     vllm_reasoning_parser       = var.vllm_reasoning_parser
     hf_token_secret_name        = var.hf_token_secret_name
@@ -41,10 +42,17 @@ resource "google_compute_network" "dedicated_vpc" {
 }
 
 resource "google_compute_subnetwork" "dedicated_subnet" {
-  name          = var.subnet_name
-  ip_cidr_range = var.vpc_cidr
-  region        = var.region
-  network       = google_compute_network.dedicated_vpc.id
+  name                     = var.subnet_name
+  ip_cidr_range            = var.vpc_cidr
+  region                   = var.region
+  network                  = google_compute_network.dedicated_vpc.id
+  private_ip_google_access = true
+
+  log_config {
+    aggregation_interval = "INTERVAL_5_SEC"
+    flow_sampling        = 0.5
+    metadata             = "INCLUDE_ALL_METADATA"
+  }
 }
 
 #checkov:skip=CKV_GCP_38:Customer-managed encryption keys are overkill for dev/test environments

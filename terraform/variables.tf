@@ -69,9 +69,9 @@ variable "subnet_name" {
 }
 
 variable "assign_external_ip" {
-  description = "Assign external IP"
+  description = "Assign external IP (set to true only when direct public access is required)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "termination_action" {
