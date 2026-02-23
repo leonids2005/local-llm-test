@@ -298,9 +298,11 @@ This repository is intended to be safe to fork:
 │   ├── variables.tf                # Input variables
 │   ├── outputs.tf                  # Output values
 │   ├── backend.tf                  # GCS backend configuration
+│   ├── templates/
+│   │   └── startup.sh.tpl          # VM startup bootstrap template
 │   └── versions.tf                 # Provider versions
 ├── environments/
-│   ├── dev.tfvars                  # Development environment (T4 GPU)
+│   ├── dev.tfvars                  # Development environment variables
 │   ├── dev-a100-40.tfvars          # Dev with A100-40GB (planned)
 │   ├── dev-a100-80.tfvars          # Dev with A100-80GB (planned)
 │   └── prod.tfvars                 # Production environment
@@ -380,8 +382,9 @@ curl http://localhost:11434/api/tags
 assign_external_ip = false              # No public IP
 firewall_source_ranges = ["35.235.240.0/20"]  # IAP range only
 
-# For additional security in production:
-network = "projects/YOUR_PROJECT/global/networks/private-vpc"
+# Dedicated network isolation (managed by Terraform):
+vpc_cidr    = "10.0.1.0/24"
+subnet_name = "llm-subnet"
 ```
 
 ### Service Account Permissions
@@ -403,45 +406,52 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
 
 ### Example: Deploying Llama 2 with Ollama
 
-Create a startup script in your `.tfvars`:
+Use the startup template (recommended):
 
 ```hcl
+# environments/dev.tfvars
+startup_script_template_enabled = true
+inference_engine                = "ollama"
+ollama_model                   = "llama2"
+```
+
+Then edit `terraform/templates/startup.sh.tpl` for bootstrap logic changes
+(Docker setup, runtime flags, startup flow).
+
+### Example: Deploying MiniMax with vLLM autostart
+
+```hcl
+# environments/dev.tfvars
+startup_script_template_enabled = true
+inference_engine                = "vllm"
+vllm_model                      = "mratsim/MiniMax-M2.5-FP8-INT4-AWQ"
+vllm_tensor_parallel_size       = 2
+vllm_gpu_memory_utilization     = 0.93
+vllm_max_model_len              = 92544
+vllm_tool_call_parser           = "minimax_m2"
+vllm_reasoning_parser           = "minimax_m2"
+
+# Optional for gated/private models only:
+# hf_token_secret_name = "hf-token"
+```
+
+When `inference_engine = "vllm"`, startup launches vLLM on port `8000`
+using Docker with `--restart always`.
+
+Context window note for this setup:
+
+- Before tuning: `65536`
+- After tuning: `92544` (current practical maximum on 2x A100 for this model/config)
+- Full `196K` context generally requires larger GPU capacity (for example, 4x A100).
+
+Fallback mode still exists if needed:
+
+```hcl
+# environments/dev.tfvars
+startup_script_template_enabled = false
 startup_script = <<-EOF
   #!/bin/bash
-
-  # Install Docker
-  apt-get update
-  apt-get install -y docker.io
-  systemctl start docker
-  systemctl enable docker
-
-  # Run Ollama with Llama 2
-  docker run -d \
-    --name ollama \
-    -p 11434:11434 \
-    -v /var/lib/ollama:/root/.ollama \
-    ollama/ollama
-
-  # Pull and run model
-  docker exec ollama ollama pull llama2
-
-  # Set up systemd service for auto-restart
-  cat > /etc/systemd/system/ollama.service <<SERVICE
-  [Unit]
-  Description=Ollama LLM Service
-  After=docker.service
-  Requires=docker.service
-
-  [Service]
-  Restart=always
-  ExecStart=/usr/bin/docker start -a ollama
-  ExecStop=/usr/bin/docker stop ollama
-
-  [Install]
-  WantedBy=multi-user.target
-  SERVICE
-
-  systemctl enable ollama
+  echo "custom bootstrap"
 EOF
 ```
 
