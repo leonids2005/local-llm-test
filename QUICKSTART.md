@@ -191,12 +191,51 @@ Edit `environments/dev.tfvars` to customize:
 # Use bigger instance for larger models
 machine_type = "n1-standard-8"
 
+# Use startup script template (recommended)
+startup_script_template_enabled = true
+
+# Choose engine: ollama or vllm
+inference_engine = "ollama"
+
+# Default model pulled in startup instructions/logs
+ollama_model = "gpt-oss:120b"
+
 # Add GPU support
 # See terraform/main.tf for GPU configuration
 
 # Restrict firewall access
 firewall_source_ranges = ["YOUR_IP/32"]
+
+# Dedicated VPC/subnet isolation
+vpc_cidr    = "10.0.1.0/24"
+subnet_name = "llm-subnet"
 ```
+
+Startup script source is now managed in:
+
+`terraform/templates/startup.sh.tpl`
+
+Edit that template when you need to change bootstrap behavior (Docker, Ollama, drivers, etc.).
+
+For vLLM autostart, use:
+
+```hcl
+startup_script_template_enabled = true
+inference_engine                = "vllm"
+vllm_model                      = "mratsim/MiniMax-M2.5-FP8-INT4-AWQ"
+vllm_tensor_parallel_size       = 2
+vllm_gpu_memory_utilization     = 0.93
+vllm_max_model_len              = 92544
+vllm_tool_call_parser           = "minimax_m2"
+vllm_reasoning_parser           = "minimax_m2"
+
+# Optional for gated/private HF models only:
+# hf_token_secret_name = "hf-token"
+```
+
+Context window note (current setup): `65536 -> 92544`.
+This is a meaningful practical improvement, but still below full `196K` context,
+which typically needs larger GPU capacity (for example, 4x A100).
 
 ## Troubleshooting
 
@@ -228,6 +267,16 @@ gcloud iam service-accounts keys create new-key.json \
 # SSH to instance and check logs
 gcloud compute ssh llm-server-dev --zone=us-central1-a
 sudo journalctl -u google-startup-scripts.service
+```
+
+Also validate startup script configuration:
+
+```bash
+# Confirm template mode is enabled for dev
+grep startup_script_template_enabled environments/dev.tfvars
+
+# Validate startup script template exists
+ls terraform/templates/startup.sh.tpl
 ```
 
 ### Model takes forever to download

@@ -56,22 +56,22 @@ variable "image_project" {
   default     = "debian-cloud"
 }
 
-variable "network" {
-  description = "VPC network"
+variable "vpc_cidr" {
+  description = "CIDR range for the dedicated VPC subnet"
   type        = string
-  default     = "default"
+  default     = "10.0.1.0/24"
 }
 
-variable "subnet" {
-  description = "Subnet name"
+variable "subnet_name" {
+  description = "Name for the dedicated subnet"
   type        = string
-  default     = ""
+  default     = "llm-subnet"
 }
 
 variable "assign_external_ip" {
-  description = "Assign external IP"
+  description = "Assign external IP (set to true only when direct public access is required)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "termination_action" {
@@ -83,6 +83,13 @@ variable "termination_action" {
     condition     = contains(["STOP", "DELETE"], var.termination_action)
     error_message = "Must be STOP or DELETE"
   }
+}
+
+variable "deletion_protection" {
+  description = "Enable instance deletion protection. If null, defaults to true for prod and false for non-prod environments."
+  type        = bool
+  default     = null
+  nullable    = true
 }
 
 variable "tags" {
@@ -99,6 +106,76 @@ variable "labels" {
 
 variable "startup_script" {
   description = "Startup script"
+  type        = string
+  default     = ""
+}
+
+variable "startup_script_template_enabled" {
+  description = "Render startup script from terraform/templates/startup.sh.tpl instead of using startup_script directly"
+  type        = bool
+  default     = false
+}
+
+variable "inference_engine" {
+  description = "Inference engine to use in startup template: ollama or vllm"
+  type        = string
+  default     = "ollama"
+
+  validation {
+    condition     = contains(["ollama", "vllm"], lower(var.inference_engine))
+    error_message = "inference_engine must be either 'ollama' or 'vllm'."
+  }
+}
+
+variable "vllm_model" {
+  description = "Model ID for vLLM (for example: mratsim/MiniMax-M2.5-FP8-INT4-AWQ)"
+  type        = string
+  default     = "mratsim/MiniMax-M2.5-FP8-INT4-AWQ"
+}
+
+variable "vllm_tensor_parallel_size" {
+  description = "vLLM tensor parallel size"
+  type        = number
+  default     = 1
+}
+
+variable "vllm_gpu_memory_utilization" {
+  description = "vLLM GPU memory utilization target (0.0 - 1.0)"
+  type        = number
+  default     = 0.93
+
+  validation {
+    condition     = var.vllm_gpu_memory_utilization > 0 && var.vllm_gpu_memory_utilization < 1
+    error_message = "vllm_gpu_memory_utilization must be > 0 and < 1."
+  }
+}
+
+variable "vllm_max_model_len" {
+  description = "vLLM max model context length"
+  type        = number
+  default     = 65536
+}
+
+variable "vllm_trust_remote_code" {
+  description = "Pass --trust-remote-code to vLLM (required by some community models, use with caution)"
+  type        = bool
+  default     = false
+}
+
+variable "vllm_tool_call_parser" {
+  description = "vLLM tool call parser name"
+  type        = string
+  default     = "minimax_m2"
+}
+
+variable "vllm_reasoning_parser" {
+  description = "vLLM reasoning parser name"
+  type        = string
+  default     = "minimax_m2"
+}
+
+variable "hf_token_secret_name" {
+  description = "Optional Secret Manager secret name containing Hugging Face token for gated/private models"
   type        = string
   default     = ""
 }
@@ -165,4 +242,10 @@ variable "enable_cloud_nat" {
   description = "Enable Cloud NAT for outbound internet access without external IP (~$5-6/month)"
   type        = bool
   default     = false
+}
+
+variable "ollama_model" {
+  description = "Ollama model name"
+  type        = string
+  default     = "gpt-oss:120b"
 }
