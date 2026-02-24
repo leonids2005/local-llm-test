@@ -28,6 +28,7 @@ inference_engine                = "vllm"
 # Before: 65536 (failed on large codebase overview prompt)
 # After:  92544 (vLLM-calculated hardware maximum for this setup)
 vllm_max_model_len = 92544
+vllm_trust_remote_code = true
 
 # Allow IAP access (Google's IP range for IAP)
 firewall_rules = [
