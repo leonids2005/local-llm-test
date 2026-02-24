@@ -173,6 +173,13 @@ resource "google_compute_router_nat" "nat" {
     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
   }
 
+  lifecycle {
+    replace_triggered_by = [
+      google_compute_router.nat_router[0].id,
+      google_compute_subnetwork.dedicated_subnet.id
+    ]
+  }
+
   log_config {
     enable = true
     filter = "ERRORS_ONLY"
