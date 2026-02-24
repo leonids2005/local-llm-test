@@ -4,7 +4,7 @@ region             = "us-east4"       # Must match zone region for Cloud NAT
 machine_type       = "a2-ultragpu-2g" # 2x NVIDIA A100 80GB (160GB VRAM total)
 boot_disk_size     = 250              # Persistent disk for LLM models
 boot_disk_type     = "pd-ssd"         # SSD for faster model loading
-termination_action = "DELETE"           # Preserve GPU setup and downloaded models
+termination_action = "STOP"           # Preserve GPU setup and downloaded models
 
 # Zone selection: us-east4 - only region where we got A100-80GB quota approved
 # Requested us-central1 but was denied, us-east4 partially approved (1 GPU)
