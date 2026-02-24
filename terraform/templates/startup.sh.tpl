@@ -141,6 +141,12 @@ if ! docker ps | grep -q vllm; then
 
   mkdir -p /var/cache/huggingface
 
+%{ if vllm_trust_remote_code }
+  VLLM_TRUST_REMOTE_CODE_FLAG="--trust-remote-code"
+%{ else }
+  VLLM_TRUST_REMOTE_CODE_FLAG=""
+%{ endif }
+
   if [ -n "$HF_TOKEN" ]; then
     docker run -d \
       --gpus all \
@@ -155,10 +161,7 @@ if ! docker ps | grep -q vllm; then
       ${vllm_model} \
       --tensor-parallel-size ${vllm_tensor_parallel_size} \
       --gpu-memory-utilization ${vllm_gpu_memory_utilization} \
-      --max-model-len ${vllm_max_model_len} \
-%{ if vllm_trust_remote_code }
-      --trust-remote-code \
-%{ endif }
+      --max-model-len ${vllm_max_model_len} ${VLLM_TRUST_REMOTE_CODE_FLAG} \
       --enable-auto-tool-choice \
       --tool-call-parser ${vllm_tool_call_parser} \
       --reasoning-parser ${vllm_reasoning_parser}
@@ -174,10 +177,7 @@ if ! docker ps | grep -q vllm; then
       ${vllm_model} \
       --tensor-parallel-size ${vllm_tensor_parallel_size} \
       --gpu-memory-utilization ${vllm_gpu_memory_utilization} \
-      --max-model-len ${vllm_max_model_len} \
-%{ if vllm_trust_remote_code }
-      --trust-remote-code \
-%{ endif }
+      --max-model-len ${vllm_max_model_len} ${VLLM_TRUST_REMOTE_CODE_FLAG} \
       --enable-auto-tool-choice \
       --tool-call-parser ${vllm_tool_call_parser} \
       --reasoning-parser ${vllm_reasoning_parser}

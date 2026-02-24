@@ -723,13 +723,21 @@ sudo journalctl -u google-startup-scripts.service -f
 
 # Check Docker containers
 sudo docker ps
+
+# Ollama logs (if inference_engine = "ollama")
 sudo docker logs ollama -f
+
+# vLLM logs (if inference_engine = "vllm")
+sudo docker logs vllm -f
 
 # Check GPU usage (if GPU instance)
 nvidia-smi
 
 # Test Ollama locally on VM
 curl http://localhost:11434/api/tags
+
+# Test vLLM locally on VM
+curl http://localhost:8000/v1/models
 ```
 
 ### Remote Commands via IAP
@@ -748,6 +756,12 @@ gcloud compute ssh llm-server-dev \
   --zone=us-central1-a \
   --tunnel-through-iap \
   --command="docker exec ollama ollama list"
+
+# List available models via vLLM API
+gcloud compute ssh llm-server-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --command="curl -s http://localhost:8000/v1/models"
 
 # Check system resources
 gcloud compute ssh llm-server-dev \
