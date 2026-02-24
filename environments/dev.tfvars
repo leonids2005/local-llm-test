@@ -27,7 +27,7 @@ inference_engine                = "vllm"
 # Context window tuning for current 2x A100 setup
 # Before: 65536 (failed on large codebase overview prompt)
 # After:  92544 (vLLM-calculated hardware maximum for this setup)
-vllm_max_model_len = 92544
+vllm_max_model_len = 92160
 vllm_trust_remote_code = true
 vllm_tensor_parallel_size = 2
 
