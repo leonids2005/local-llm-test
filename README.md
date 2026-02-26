@@ -697,16 +697,178 @@ gh workflow run terraform-apply.yml -f environment=prod
 # Actions → Terraform Apply → Run workflow → Select "prod"
 ```
 
-### Destroy Infrastructure
+### Complete Infrastructure Cleanup
+
+When you're done with the project and want to delete all resources to stop billing (~$53/month savings), follow this comprehensive cleanup guide.
+
+#### Option 1: Using Terraform Destroy (Recommended)
+
+**This is the preferred method** - it's cleaner, faster, and properly handles resource dependencies.
 
 ```bash
-# Local destruction
+# Navigate to terraform directory
 cd terraform
+
+# Initialize Terraform (if not already initialized)
+terraform init -backend-config="bucket=YOUR_PROJECT_ID-terraform-state"
+
+# Review what will be destroyed (optional but recommended)
+terraform plan -destroy -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+
+# Destroy all infrastructure
 terraform destroy -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
 
-# Or via API
-terraform destroy -auto-approve
+# Optionally delete the Terraform state bucket
+gsutil -m rm -r gs://YOUR_PROJECT_ID-terraform-state/**
+gsutil rb gs://YOUR_PROJECT_ID-terraform-state
 ```
+
+**When to use this method:**
+- ✅ Terraform state exists in GCS bucket
+- ✅ You want automated, dependency-aware cleanup
+- ✅ Standard infrastructure teardown
+
+#### Option 2: Manual Cleanup (Fallback for edge cases)
+
+**Use this method when:**
+- ⚠️ Terraform state is corrupted or lost
+- ⚠️ Terraform destroy fails or hangs
+- ⚠️ You want to ensure orphaned resources are removed
+- ⚠️ You need granular control over deletion order
+
+> **💡 Tip:** Always try Option 1 (Terraform destroy) first. Manual cleanup should be your fallback strategy.
+
+**Deletion Order Matters:** Resources must be deleted in this specific order due to dependencies.
+
+**Step 1: Delete VM Instance**
+```bash
+gcloud compute instances delete llm-server-dev \
+  --zone=us-east4-c \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 2: Delete Persistent Disks** (Saves ~$46.50/month)
+```bash
+# Delete disk in us-central1-c (if exists)
+gcloud compute disks delete llm-server-dev \
+  --zone=us-central1-c \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+
+# Delete disk in us-east4-c (or your actual zone)
+gcloud compute disks delete llm-server-dev \
+  --zone=us-east4-c \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 3: Delete Cloud NAT** (Saves ~$6/month)
+```bash
+gcloud compute routers nats delete llm-server-dev-nat \
+  --router=llm-server-dev-nat-router \
+  --region=us-east4 \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 4: Delete Cloud Router** (Saves ~$0.50/month)
+```bash
+gcloud compute routers delete llm-server-dev-nat-router \
+  --region=us-east4 \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 5: Delete Firewall Rules**
+```bash
+gcloud compute firewall-rules delete llm-server-dev-firewall \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 6: Delete Subnet**
+```bash
+gcloud compute networks subnets delete llm-subnet \
+  --region=us-east4 \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 7: Delete VPC Network**
+```bash
+gcloud compute networks delete llm-server-dev-vpc \
+  --project=YOUR_PROJECT_ID \
+  --quiet
+```
+
+**Step 8: Delete GCS Bucket (Terraform State)** - Optional
+```bash
+# Remove all objects first
+gsutil -m rm -r gs://YOUR_PROJECT_ID-terraform-state/**
+
+# Delete the bucket
+gsutil rb gs://YOUR_PROJECT_ID-terraform-state
+```
+
+#### Verification
+
+Verify all resources are deleted:
+
+```bash
+# Check instances
+gcloud compute instances list --project=YOUR_PROJECT_ID
+
+# Check disks
+gcloud compute disks list --project=YOUR_PROJECT_ID
+
+# Check networks
+gcloud compute networks list --project=YOUR_PROJECT_ID --filter="name:llm-server"
+
+# Check buckets
+gsutil ls -p YOUR_PROJECT_ID | grep terraform-state
+```
+
+#### What Gets Preserved
+
+These resources are **NOT deleted** (no cost, useful for future deployments):
+
+- ✅ Service account: `terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com`
+- ✅ IAM roles and permissions
+- ✅ Workload Identity Federation setup (for GitHub Actions)
+- ✅ GCP Project
+
+#### Cost Savings
+
+After complete cleanup:
+- **VM Instance**: $0 (was ~$10-15/hr when running A100 GPUs)
+- **Persistent Disks**: Saves ~$46.50/month
+- **Cloud NAT**: Saves ~$6/month
+- **Cloud Router**: Saves ~$0.50/month
+- **Total Monthly Savings**: ~$53/month
+
+#### Recreating Infrastructure Later
+
+Since service accounts and IAM are preserved, recreation is simple:
+
+1. **Recreate Terraform state bucket:**
+   ```bash
+   gsutil mb gs://YOUR_PROJECT_ID-terraform-state
+   gsutil versioning set on gs://YOUR_PROJECT_ID-terraform-state
+   ```
+
+2. **Deploy via Terraform:**
+   ```bash
+   cd terraform
+   terraform init -backend-config="bucket=YOUR_PROJECT_ID-terraform-state"
+   terraform apply -var-file=../environments/dev.tfvars -var="project_id=YOUR_PROJECT_ID"
+   ```
+
+3. **Or use GitHub Actions:**
+   ```bash
+   git push origin main
+   # GitHub Actions will automatically deploy
+   ```
 
 ## 📊 Monitoring & Logging
 
@@ -788,7 +950,7 @@ gcloud compute ssh llm-server-dev \
 gcloud compute instances describe spot-instance-dev --zone=us-central1-a
 
 # If termination_action = "STOP", restart it
-gcloud compute instances start spot-instance-dev --zone=us-central1-a
+exit
 
 # If deleted, Terraform will recreate on next apply
 terraform apply -var-file=../environments/dev.tfvars
